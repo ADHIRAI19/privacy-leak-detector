@@ -1,9 +1,19 @@
-name: Privacy Leak Detector
-description: Detects privacy leaks in text with easy/medium/hard tasks, API/email/phone/keyword patterns
+name: privacy-leak-detector
+version: 1.0.0
+description: Privacy Leak Detector using keyword, structured, contextual detection with risk scoring.
+tasks:
+  - id: 0
+    name: Easy Keywords
+  - id: 1
+    name: Medium Structured
+  - id: 2
+    name: Hard Contextual
 files:
-  - path: Dockerfile
-  - path: inference.py
-  - path: openenv.yaml
-  - path: privacy_leak_detector/env.py
-  - path: privacy_leak_detector/graders.py
-  - path: requirements.txt
+  - Dockerfile
+  - inference.py
+  - requirements.txt
+  - app.py
+  - privacy_leak_detector/__init__.py
+  - privacy_leak_detector/env.py
+  - privacy_leak_detector/graders.py
+  - openenv.yaml
