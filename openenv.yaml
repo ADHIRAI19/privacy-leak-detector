@@ -1,0 +1,9 @@
+name: Privacy Leak Detector
+description: Detects privacy leaks in text with easy/medium/hard tasks, API/email/phone/keyword patterns
+files:
+  - path: Dockerfile
+  - path: inference.py
+  - path: openenv.yaml
+  - path: privacy_leak_detector/env.py
+  - path: privacy_leak_detector/graders.py
+  - path: requirements.txt
