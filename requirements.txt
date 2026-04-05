@@ -1,0 +1,6 @@
+gradio
+pydantic
+openai
+audioop-lts
+pyaudioop
+

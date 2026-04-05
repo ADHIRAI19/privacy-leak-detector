@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title> Privacy Leak Detector</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; }
+        textarea { width: 100%; height: 150px; font-family: monospace; }
+        select, button { padding: 10px; margin: 5px 0; font-size: 16px; }
+        .scores { display: flex; gap: 10px; margin: 10px 0; }
+        .score-card { flex: 1; padding: 15px; border-radius: 8px; text-align: center; }
+        .easy { background: #d4edda; border: 2px solid #28a745; }
+        .medium { background: #fff3cd; border: 2px solid #ffc107; }
+        .hard { background: #f8d7da; border: 2px solid #dc3545; }
+        .score-num { font-size: 28px; font-weight: bold; margin: 5px 0; }
+        .result-main { background: #f8f9fa; padding: 20px; margin: 15px 0; border-radius: 8px; border-left: 5px solid #007bff; }
+        .critical { color: #dc3545; font-weight: bold; }
+        .high { color: #fd7e14; }
+        .medium-risk { color: #ffc107; }
+        .low { color: #28a745; }
+        .detections { background: white; border: 1px solid #dee2e6; padding: 10px; margin: 10px 0; max-height: 200px; overflow-y: auto; }
+        h1 { color: #007bff; }
+        h3 { margin-top: 0; }
+        .loading { opacity: 0.6; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <h1> Privacy Leak Detector - OpenEnv Demo</h1>
+    <p>3 Tasks (Easy → Hard) with live scores. Paste text & detect!</p>
+
+    <label>Text:</label>
+    <textarea id="textInput" placeholder="My password is supersecret123...">My password is supersecret123! Contact: john.doe@example.com Phone: +1-555-123-4567 sk-testkey confidential SSN.</textarea>
+
+    <button onclick="analyzeAll()" id="analyzeBtn" style="background: #007bff; color: white; border: none; cursor: pointer;">🔍 Analyze All Tasks</button>
+
+    <div id="scores" class="scores" style="display:none;">
+        <div class="score-card easy">
+            <h4>Easy (Keywords)</h4>
+            <div class="score-num" id="easyScore">--</div>
+        </div>
+        <div class="score-card medium">
+            <h4>Medium (Emails/Phones/API)</h4>
+            <div class="score-num" id="mediumScore">--</div>
+        </div>
+        <div class="score-card hard">
+            <h4>Hard (Contextual)</h4>
+            <div class="score-num" id="hardScore">--</div>
+        </div>
+    </div>
+
+    <div id="result" style="display:none;">
+        <div class="result-main">
+            <h3 id="taskTitle">Results</h3>
+            <div id="scoreMain" class="score-num critical">--</div>
+            <div id="riskLevel" class="critical">CRITICAL</div>
+            <div id="detections" class="detections"></div>
+            <div id="explanation"></div>
+        </div>
+    </div>
+
+    <script>
+        async function analyzeAll() {
+            const btn = document.getElementById('analyzeBtn');
+            const text = document.getElementById('textInput').value;
+            btn.textContent = 'Analyzing...';
+            btn.disabled = true;
+            document.body.classList.add('loading');
+
+            try {
+                const response = await fetch('/analyze', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({text: text})
+                });
+                if (!response.ok) {
+                    throw new Error('API error');
+                }
+                const data = await response.json();
+
+                document.getElementById('easyScore').textContent = data.easy.toFixed(3);
+                document.getElementById('mediumScore').textContent = data.medium.toFixed(3);
+                document.getElementById('hardScore').textContent = data.hard.toFixed(3);
+                document.getElementById('scores').style.display = 'flex';
+
+                const tasks = ['Easy: Keywords', 'Medium: Emails/Phones/API', 'Hard: Contextual'];
+                const scores = [
+                    {score: data.easy, issues: data.issues.filter(i => i.includes('easy')), taskId: 0},
+                    {score: data.medium, issues: data.issues.filter(i => i.includes('medium')), taskId: 1},
+                    {score: data.hard, issues: data.issues.filter(i => i.includes('hard')), taskId: 2}
+                ];
+                const max = scores.reduce((maxItem, curr) => curr.score > maxItem.score ? curr : maxItem);
+showDetailedResult(max.score, max.issues, max.taskId, data.final_score, data.risk, data.recommendations);
+            } catch (error) {
+                alert('Error: ' + error.message);
+            } finally {
+                btn.textContent = '🔍 Analyze All Tasks';
+                btn.disabled = false;
+                document.body.classList.remove('loading');
+            }
+        }
+
+function showDetailedResult(score, detections, taskId, finalScore, risk, recommendations) {
+            const tasks = ['Easy: Keywords', 'Medium: Emails/Phones/API', 'Hard: Contextual'];
+            const levels = risk;
+            const levelText = risk.toUpperCase();
+
+            document.getElementById('taskTitle').textContent = tasks[taskId];
+            document.getElementById('scoreMain').textContent = score.toFixed(3);
+            document.getElementById('scoreMain').className = `score-num ${levels}`;
+            document.getElementById('riskLevel').textContent = levelText;
+            document.getElementById('riskLevel').className = levels;
+            document.getElementById('detections').innerHTML = `<strong>${detections.length} Issues:</strong><br>` + 
+                detections.map(d => `• <code>${maskValue(d)}</code>`).join('<br>') || 'None detected';
+            let recHtml = '';
+            if (recommendations) {
+                recHtml = `<div id="recommendations"><strong>Recommendations:</strong><ul>${recommendations.map(r => `<li>${r}</li>`).join('')}</ul></div>`;
+            }
+            document.getElementById('explanation').innerHTML = `<em>Final: ${finalScore.toFixed(3)} (${risk.toUpperCase()}).</em> ${recHtml}`;
+            document.getElementById('result').style.display = 'block';
+        }
+
+        function maskValue(value) {
+            return value.replace(/\w{4,}/gi, (match) => match[0] + '*'.repeat(match.length - 2) + match.slice(-1)).slice(0, 80);
+        }
+    </script>
+</body>
+</html>
