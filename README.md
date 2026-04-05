@@ -1,4 +1,4 @@
-# 🛡️ Privacy Leak Detector
+#  Privacy Leak Detector
 
 [![Hugging Face Spaces](https://img.shields.io/badge/%F0%9F%A4%97%20HF%20Spaces-1f3e05)](https://huggingface.co/spaces/YOUR_USERNAME/privacy-leak-detector)
 [![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker)](https://hub.docker.com/)
