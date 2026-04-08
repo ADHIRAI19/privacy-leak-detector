@@ -1,57 +1,76 @@
-#!/usr/bin/env python
+from fastapi import FastAPI
+from pydantic import BaseModel
+import uvicorn
 import os
-API_BASE_URL = os.getenv(\"API_BASE_URL\", \"https://api.openai.com/v1\")
-MODEL_NAME = os.getenv(\"MODEL_NAME\", \"gpt-4o-mini\")
-HF_TOKEN = os.getenv(\"HF_TOKEN\")
-LOCAL_IMAGE_NAME = os.getenv(\"LOCAL_IMAGE_NAME\")
-
 import json
-from typing import Dict
 from openai import OpenAI
-from privacy_leak_detector.env import PrivacyLeakEnv, Observation, Action
+from privacy_leak_detector.env import PrivacyLeakEnv, Action
 from privacy_leak_detector.graders import Detection
 
-client = OpenAI(
-    api_key=os.getenv(\"OPENAI_API_KEY\"),
-    base_url=API_BASE_URL
-)
-MODEL = MODEL_NAME
+app = FastAPI(title="Privacy Leak Detector OpenEnv")
 
-print(\"[START] PrivacyLeakDetector baseline\")
+class ResetRequest(BaseModel):
+    task_id: int = 0
 
-task_names = [\"Easy\", \"Medium\", \"Hard\"]
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-def format_prompt(obs):
-    return f\"\"\"Task {obs.task_id} ({task_names[obs.task_id]}): {obs.text}
+MODEL = "gpt-4o-mini"
 
-Score: {obs.current_score:.2f}
+task_names = ["Easy", "Medium", "Hard"]
 
-JSON response:
+env = PrivacyLeakEnv()
+current_obs = None
+
+def format_prompt(task_id):
+    task = task_names[task_id]
+    return f"""Privacy Leak Detection Task {task_id} ({task}): Analyze for privacy leaks.
+
+Return JSON only:
 {{
-  \"analysis\": \"Risk analysis...\",
-  \"risk_level\": \"medium\",
-  \"detections\": [{{\"type\": \"keyword\", \"value\": \"password\", \"confidence\": 0.95}}]
-}}\"\"\"
+  "analysis": "your analysis",
+  "risk_level": "low|medium|high|critical",
+  "detections": [{{"type": "email", "value": "example@domain.com", "confidence": 0.95}}]
+}}"""
 
-def run_episode(task_id):
+@app.post("/openenv/reset")
+async def reset(request: ResetRequest):
+    global current_obs, env
     env = PrivacyLeakEnv()
-    obs = env.reset(task_id)
-    print(f\"[STEP 0] Task {task_id}\")
-    
-    prompt = format_prompt(obs)
-    resp = client.chat.completions.create(model=MODEL, messages=[{\"role\": \"user\", \"content\": prompt}])
-    
+    current_obs = env.reset(request.task_id)
+    return {"status": "reset done", "task_id": request.task_id}
+
+@app.post("/openenv/validate")
+async def validate():
+    return {"status": "ok", "endpoints": ["/openenv/reset", "/openenv/validate", "/step"]}
+
+@app.post("/step")
+async def step():
+    global current_obs
+
+    prompt = format_prompt(current_obs.task_id)
+
+    resp = client.chat.completions.create(
+        model=MODEL,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.3
+    )
+
     try:
-        action = Action(**json.loads(resp.choices[0].message.content))
+        content = resp.choices[0].message.content
+        action_dict = json.loads(content)
+        action = Action(**action_dict)
     except:
-        action = Action(analysis=\"Test\", risk_level=\"low\", detections=[Detection(type=\"test\", value=\"test\", confidence=0.5)])
-    
+        action = Action(analysis="AI response parse error", risk_level="low", detections=[])
+
     obs, reward, done, info = env.step(action)
-    print(f\"[END] Score: {info['final_score']:.3f}\")
-    return info['final_score']
+    current_obs = obs
 
-for t in range(3):
-    score = run_episode(t)
-    print(f\"Task {t}: {score}\")
+    return {
+        "observation": obs.dict(),
+        "reward": reward,
+        "done": done,
+        "info": info
+    }
 
-print(\"[COMPLETE]\")
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=7860)
